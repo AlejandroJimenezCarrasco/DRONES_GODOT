@@ -10,14 +10,12 @@ public partial class Player : CharacterBody2D
 	{
 		Vector2 velocity = Velocity;
 
-		// Obtenemos el vector de dirección basado en las acciones configuradas
-		Vector2 direction = Input.GetVector("move_left", "move_right", "move_up", "move_down");
+		// Obtenemos el vector de dirección a través del InputManager
+		Vector2 direction = InputManager.Instance.GetMovementDirection();
 		
 		if (direction != Vector2.Zero)
 		{
 			velocity = direction * Speed;
-			// Rotamos el personaje hacia la dirección del movimiento
-			Rotation = direction.Angle();
 		}
 		else
 		{

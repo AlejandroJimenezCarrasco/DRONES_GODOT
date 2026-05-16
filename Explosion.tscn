@@ -1,0 +1,23 @@
+[gd_scene load_steps=3 format=3 uid="uid://b8r5p6j7r8yom"]
+[ext_resource type="Script" path="res://Explosion.cs" id="1_expl"]
+
+[sub_resource type="Curve" id="Curve_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), -2.0, 0.0, 0, 0]
+point_count = 2
+
+[node name="Explosion" type="CPUParticles2D"]
+emitting = false
+amount = 15
+lifetime = 0.8
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+spread = 180.0
+gravity = Vector2(0, 400)
+initial_velocity_min = 80.0
+initial_velocity_max = 160.0
+scale_amount_min = 4.0
+scale_amount_max = 8.0
+scale_amount_curve = SubResource("Curve_scale")
+color = Color(1, 0.1, 0.1, 1)
+script = ExtResource("1_expl")

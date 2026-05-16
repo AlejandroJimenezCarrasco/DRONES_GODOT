@@ -1,50 +1,75 @@
-[gd_scene load_steps=3 format=3 uid="uid://bdcppfw1khcxx"]
+[gd_scene load_steps=7 format=3 uid="uid://bdcppfw1khcxx"]
 
-[ext_resource type="Script" uid="uid://dxu16h2r6yomr" path="res://Player.cs" id="1_player"]
+[ext_resource type="Script" path="res://Player.cs" id="1_player"]
 [ext_resource type="Script" path="res://Bunker.cs" id="2_bunker"]
 [ext_resource type="Script" path="res://InputManager.cs" id="3_input"]
-
 [ext_resource type="Script" path="res://GameManager.cs" id="4_manager"]
 [ext_resource type="PackedScene" uid="uid://c8l7n4j2r6yom" path="res://Projectile.tscn" id="5_projectile"]
+
+
+[ext_resource type="PackedScene" uid="uid://d3r5p6j7r8yom" path="res://Drone.tscn" id="7_drone"]
+[ext_resource type="PackedScene" uid="uid://hud123" path="res://HUD.tscn" id="8_hud"]
+[ext_resource type="PackedScene" uid="uid://c7r5p6j7r8yom" path="res://Stone.tscn" id="9_stone"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(40, 40)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_bunker"]
-size = Vector2(64, 64)
+[sub_resource type="CircleShape2D" id="CircleShape2D_bunker"]
+radius = 48.0
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_detection"]
-size = Vector2(72, 72)
+[sub_resource type="CircleShape2D" id="CircleShape2D_detection"]
+radius = 60.0
 
 [node name="Main" type="Node2D"]
+
+[node name="HUD" parent="." instance=ExtResource("8_hud")]
 
 [node name="GameManager" type="Node" parent="." node_paths=PackedStringArray("Player", "Bunker")]
 script = ExtResource("4_manager")
 Player = NodePath("../Player")
 Bunker = NodePath("../Bunker")
+DroneScene = ExtResource("7_drone")
 
 [node name="InputManager" type="Node" parent="."]
 script = ExtResource("3_input")
 
 [node name="Floor" type="ColorRect" parent="."]
+z_index = -10
 offset_right = 1152.0
 offset_bottom = 648.0
-color = Color(0.0627451, 0.188235, 0.0627451, 1)
+color = Color(0.435294, 0.647059, 0.435294, 1)
 
-[node name="Bunker" type="StaticBody2D" parent="." node_paths=PackedStringArray("Arrow")]
+[node name="Bunker" type="StaticBody2D" parent="." node_paths=PackedStringArray("Arrow", "TargetCircle")]
+z_index = 10
 position = Vector2(576, 324)
 script = ExtResource("2_bunker")
 Arrow = NodePath("Arrow")
+TargetCircle = NodePath("TargetCircle")
 ProjectileScene = ExtResource("5_projectile")
+StoneScene = ExtResource("9_stone")
 
-[node name="Background" type="ColorRect" parent="Bunker"]
-offset_left = -32.0
-offset_top = -32.0
-offset_right = 32.0
-offset_bottom = 32.0
-metadata/_edit_use_anchors_ = true
+[node name="Arrow" type="Node2D" parent="Bunker"]
+rotation = -1.5708
+
+[node name="Polygon2D" type="Polygon2D" parent="Bunker/Arrow"]
+polygon = PackedVector2Array(0, -10, 70, 0, 0, 10)
+
+[node name="TargetCircle" type="Node2D" parent="Bunker"]
+visible = false
+
+[node name="Line2D" type="Line2D" parent="Bunker/TargetCircle"]
+points = PackedVector2Array(20, 0, 14.14, 14.14, 0, 20, -14.14, 14.14, -20, 0, -14.14, -14.14, 0, -20, 14.14, -14.14, 20, 0)
+width = 2.0
+default_color = Color(1, 1, 0, 0.5)
+
+[node name="CircleFallback" type="Polygon2D" parent="Bunker"]
+color = Color(0.92549, 0.941176, 0.941176, 1)
+polygon = PackedVector2Array(48, 0, 47.08, 9.36, 44.35, 18.37, 39.95, 26.67, 33.94, 33.94, 26.67, 39.95, 18.37, 44.35, 9.36, 47.08, 0, 48, -9.36, 47.08, -18.37, 44.35, -26.67, 39.95, -33.94, 33.94, -39.95, 26.67, -44.35, 18.37, -47.08, 9.36, -48, 0, -47.08, -9.36, -44.35, -18.37, -39.95, -26.67, -33.94, -33.94, -26.67, -39.95, -18.37, -44.35, -9.36, -47.08, 0, -48, 9.36, -47.08, 18.37, -44.35, 26.67, -39.95, 33.94, -33.94, 39.95, -26.67, 44.35, -18.37, 47.08, -9.36)
+
+
 
 [node name="Alarm" type="ColorRect" parent="Bunker"]
+visible = false
 layout_mode = 0
 offset_left = -8.0
 offset_top = -8.0
@@ -53,16 +78,12 @@ offset_bottom = 8.0
 color = Color(1, 0, 0, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bunker"]
-shape = SubResource("RectangleShape2D_bunker")
+shape = SubResource("CircleShape2D_bunker")
 
 [node name="DetectionArea" type="Area2D" parent="Bunker"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Bunker/DetectionArea"]
-shape = SubResource("RectangleShape2D_detection")
-
-[node name="Arrow" type="Polygon2D" parent="Bunker"]
-color = Color(1, 1, 0, 1)
-polygon = PackedVector2Array(-30, -6, 20, 0, -30, 6)
+shape = SubResource("CircleShape2D_detection")
 
 [node name="Player" type="CharacterBody2D" parent="."]
 position = Vector2(246, 324)

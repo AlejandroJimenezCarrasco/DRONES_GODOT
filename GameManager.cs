@@ -9,12 +9,13 @@ public partial class GameManager : Node
 
 	[Export] public Player Player;
 	[Export] public Bunker Bunker;
+	[Export] public PackedScene DroneScene;
 
 	private GameState _currentState = GameState.Exploration;
 	public GameState CurrentState => _currentState;
 
 	private float _waveTimer = 0.0f;
-	private float _spawnInterval = 3.0f;
+	private float _spawnInterval = 4.0f; // Spawning lento como pediste
 
 	public override void _Ready()
 	{
@@ -23,10 +24,15 @@ public partial class GameManager : Node
 
 	public override void _Process(double delta)
 	{
-		if (_currentState == GameState.GameOver) return;
+		if (_currentState == GameState.GameOver)
+		{
+			if (Input.IsActionJustPressed("interact")) // Reiniciar con E
+			{
+				GetTree().ReloadCurrentScene();
+			}
+			return;
+		}
 
-		// Solo spawnear drones si el jugador está en el búnker (o siempre, según prefieras)
-		// Vamos a activarlo siempre para dar dinamismo
 		_waveTimer += (float)delta;
 		if (_waveTimer >= _spawnInterval)
 		{
@@ -37,7 +43,11 @@ public partial class GameManager : Node
 
 	private void SpawnDrone()
 	{
-		// Lados: 0=Arriba, 1=Abajo, 2=Izquierda, 3=Derecha
+		if (DroneScene == null) return;
+
+		Drone drone = DroneScene.Instantiate<Drone>();
+		GetParent().AddChild(drone);
+
 		int side = GD.RandRange(0, 3);
 		Vector2 spawnPos = Vector2.Zero;
 		Vector2 screenSize = GetViewport().GetVisibleRect().Size;
@@ -50,8 +60,7 @@ public partial class GameManager : Node
 			case 3: spawnPos = new Vector2(screenSize.X + 50, GD.Randf() * screenSize.Y); break;
 		}
 
-		GD.Print($"Spawning drone from side {side} at position {spawnPos}");
-		// TODO: Instanciar drone y dirigirlo al búnker
+		drone.GlobalPosition = spawnPos;
 	}
 
 	public void ChangeState(GameState newState)
@@ -73,8 +82,8 @@ public partial class GameManager : Node
 				break;
 				
 			case GameState.GameOver:
-				// Lógica de fin de juego
-				GD.Print("GAME OVER");
+				GD.Print("¡COOKED! GAME OVER. Presiona E para reiniciar.");
+				// Podríamos añadir una pausa o efectos aquí
 				break;
 		}
 	}

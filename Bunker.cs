@@ -3,24 +3,47 @@ using System;
 
 public partial class Bunker : StaticBody2D
 {
-	[Export]
-	public Node2D Arrow;
+	[Export] public Node2D Arrow;
+	[Export] public Node2D TargetCircle;
+	[Export] public PackedScene ProjectileScene;
+	[Export] public PackedScene StoneScene;
 	
 	private bool _isActive = false;
 	private Vector2 _currentDirection = Vector2.Up;
 	private Player _playerRef;
+	private Control _inventoryUI;
 
-	[Export] public PackedScene ProjectileScene;
+	public enum ProjectileType { Missile, Stone }
+	private ProjectileType _currentType = ProjectileType.Missile;
+
 	private bool _isCharging = false;
+	private float _chargeTime = 0.0f;
+	private float _maxChargeTime = 1.5f;
+	private float _overchargeTime = 0.0f;
+	private float _maxOverchargeTime = 3.0f;
+	private float _pulsePhase = 0.0f;
 
 	public override void _Ready()
 	{
 		SetBunkerActive(false);
+		Node hud = GetTree().Root.FindChild("HUD", true, false);
+		if (hud != null)
+		{
+			_inventoryUI = hud.GetNode<Control>("InventoryUI");
+			UpdateInventoryUI();
+		}
 	}
 
 	public override void _Process(double delta)
 	{
 		if (!_isActive) return;
+
+		if (Input.IsActionJustPressed("switch_weapon"))
+		{
+			_currentType = (_currentType == ProjectileType.Missile) ? ProjectileType.Stone : ProjectileType.Missile;
+			UpdateInventoryUI();
+			ResetCharge(); // Resetear visuales al cambiar
+		}
 
 		if (Input.IsActionJustPressed("interact"))
 		{
@@ -28,35 +51,68 @@ public partial class Bunker : StaticBody2D
 			return;
 		}
 
-		// 1. Cambio de lado con WASD
-		Vector2 inputDir = InputManager.Instance.GetMovementDirection();
-		if (inputDir != Vector2.Zero)
-		{
-			if (Mathf.Abs(inputDir.X) > Mathf.Abs(inputDir.Y))
-				_currentDirection = new Vector2(Mathf.Sign(inputDir.X), 0);
-			else
-				_currentDirection = new Vector2(0, Mathf.Sign(inputDir.Y));
-		}
-
-		// 2. Oscilación con el ratón (limitada a 90 grados en total, +/- 45 del eje)
 		Vector2 mousePos = GetGlobalMousePosition();
 		Vector2 dirToMouse = (mousePos - GlobalPosition).Normalized();
-		
-		float targetAngle = dirToMouse.Angle();
-		float baseAngle = _currentDirection.Angle();
-		
-		// Calculamos la diferencia de ángulo y la limitamos a 45 grados (PI/4)
-		float angleDiff = Mathf.AngleDifference(baseAngle, targetAngle);
-		float clampedDiff = Mathf.Clamp(angleDiff, -Mathf.Pi / 4, Mathf.Pi / 4);
-		float finalAngle = baseAngle + clampedDiff;
 
 		if (Arrow != null)
 		{
-			Arrow.Rotation = finalAngle;
-			Arrow.Position = new Vector2(Mathf.Cos(finalAngle), Mathf.Sin(finalAngle)) * 40.0f;
+			Arrow.Rotation = dirToMouse.Angle();
+			
+			if (_isCharging)
+			{
+				float chargePercent = Mathf.Clamp(_chargeTime / _maxChargeTime, 0.0f, 1.0f);
+				
+				if (_currentType == ProjectileType.Missile)
+				{
+					// LOGICA MISIL: La flecha crece
+					_chargeTime += (float)delta;
+					Arrow.Scale = new Vector2(1.0f + (chargePercent * 2.0f), 1.0f);
+					if (TargetCircle != null) TargetCircle.Visible = false;
+				}
+				else
+				{
+					// LOGICA PIEDRA: Flecha fija (0.7) y el círculo se aleja
+					_chargeTime += (float)delta;
+					Arrow.Scale = new Vector2(0.7f, 0.7f); 
+					if (TargetCircle != null)
+					{
+						TargetCircle.Visible = true;
+						// Rango reducido en un 30% aproximadamente
+						float dist = 70.0f + (chargePercent * 350.0f);
+						TargetCircle.Position = dirToMouse * dist;
+					}
+				}
+
+				// Pulsación si llegamos al máximo (Overcharge)
+				if (_chargeTime >= _maxChargeTime)
+				{
+					_overchargeTime += (float)delta;
+					_pulsePhase += (float)delta * 15.0f;
+					
+					float alphaPulse = 0.5f + Mathf.Sin(_pulsePhase) * 0.5f;
+					Color pulseColor = new Color(1, 1, 1, alphaPulse);
+					
+					Arrow.Modulate = pulseColor;
+					if (TargetCircle != null && _currentType == ProjectileType.Stone)
+					{
+						TargetCircle.Modulate = pulseColor;
+					}
+					
+					if (_overchargeTime >= _maxOverchargeTime)
+					{
+						Fire(dirToMouse);
+						ResetCharge();
+					}
+				}
+				else
+				{
+					// Resetear modulación si no estamos en overcharge
+					Arrow.Modulate = new Color(1, 1, 1, 1);
+					if (TargetCircle != null) TargetCircle.Modulate = new Color(1, 1, 1, 1);
+				}
+			}
 		}
 
-		// 3. Disparo
 		if (Input.IsActionJustPressed("charge_projectile"))
 		{
 			_isCharging = true;
@@ -64,45 +120,89 @@ public partial class Bunker : StaticBody2D
 
 		if (Input.IsActionJustReleased("charge_projectile") && _isCharging)
 		{
-			FireProjectile(new Vector2(Mathf.Cos(finalAngle), Mathf.Sin(finalAngle)));
-			_isCharging = false;
+			Fire(dirToMouse);
+			ResetCharge();
 		}
 	}
 
-	private void FireProjectile(Vector2 direction)
+	private void Fire(Vector2 direction)
 	{
-		if (ProjectileScene == null)
+		// Punto de salida en el borde (40px)
+		Vector2 spawnPos = GlobalPosition + (direction * 40.0f);
+		
+		if (_currentType == ProjectileType.Missile)
 		{
-			GD.PrintErr("ProjectileScene no asignada en el Búnker");
-			return;
+			float dist = 70.0f * Arrow.Scale.X;
+			FireProjectile(direction, spawnPos, dist);
 		}
+		else
+		{
+			if (TargetCircle != null)
+			{
+				float targetDist = TargetCircle.Position.Length();
+				FireStone(direction, spawnPos, targetDist);
+			}
+		}
+	}
 
-		Projectile projectile = ProjectileScene.Instantiate<Projectile>();
-		GetParent().AddChild(projectile);
+	private void ResetCharge()
+	{
+		_isCharging = false;
+		_chargeTime = 0.0f;
+		_overchargeTime = 0.0f;
+		_pulsePhase = 0.0f;
+		if (Arrow != null)
+		{
+			Arrow.Scale = Vector2.One;
+			Arrow.Modulate = new Color(1, 1, 1, 1);
+		}
+		if (TargetCircle != null) TargetCircle.Visible = false;
+	}
+
+	private void UpdateInventoryUI()
+	{
+		if (_inventoryUI == null) return;
+		Control slots = _inventoryUI.GetNode<Control>("Slots");
+		for (int i = 0; i < 5; i++)
+		{
+			ColorRect slot = slots.GetChild<ColorRect>(i);
+			slot.Color = (i == (int)_currentType) ? new Color(0.8f, 0.8f, 0.1f) : new Color(0.3f, 0.3f, 0.3f);
+		}
+	}
+
+	private void FireProjectile(Vector2 dir, Vector2 pos, float dist)
+	{
+		if (ProjectileScene == null) return;
+		Projectile p = ProjectileScene.Instantiate<Projectile>();
+		GetParent().AddChild(p);
+		p.GlobalPosition = pos;
+		p.Direction = dir;
+		p.Rotation = dir.Angle();
+	}
+
+	private void FireStone(Vector2 dir, Vector2 pos, float targetDist)
+	{
+		if (StoneScene == null) return;
+		Stone s = StoneScene.Instantiate<Stone>();
 		
-		projectile.GlobalPosition = GlobalPosition + (direction * 45.0f);
-		projectile.Direction = direction;
-		projectile.Rotation = direction.Angle();
+		s.GlobalPosition = pos;
+		s.Direction = dir;
+		s.TargetDistance = targetDist;
+		s.Rotation = dir.Angle();
 		
-		GD.Print("¡Fuego!");
+		GetParent().AddChild(s);
 	}
 
 	public void SetBunkerActive(bool active)
 	{
 		_isActive = active;
 		if (Arrow != null) Arrow.Visible = active;
-		
+		if (TargetCircle != null) TargetCircle.Visible = false;
+
 		if (active && _playerRef != null)
-		{
-			// Guardamos la posición actual por seguridad (aunque ya la tenemos del búnker)
-			// Y mandamos al jugador "al limbo" para que no estorbe
 			_playerRef.GlobalPosition = new Vector2(-10000, -10000);
-		}
 		else if (!active && _playerRef != null)
-		{
-			// Si estamos desactivando (saliendo), posicionamos al jugador en el borde
 			_playerRef.GlobalPosition = GlobalPosition + (_currentDirection * 60.0f);
-		}
 	}
 
 	public void OnBodyEntered(Node2D body)
@@ -110,33 +210,14 @@ public partial class Bunker : StaticBody2D
 		if (body is Player player && GameManager.Instance.CurrentState == GameState.Exploration)
 		{
 			_playerRef = player;
-			
-			// Calculamos la dirección de entrada para la flecha
-			Vector2 entryVector = (GlobalPosition - player.GlobalPosition).Normalized();
-			if (Mathf.Abs(entryVector.X) > Mathf.Abs(entryVector.Y))
+			Vector2 ev = (GlobalPosition - player.GlobalPosition).Normalized();
+			_currentDirection = (Mathf.Abs(ev.X) > Mathf.Abs(ev.Y)) ? new Vector2(Mathf.Sign(ev.X), 0) : new Vector2(0, Mathf.Sign(ev.Y));
+			if (Arrow != null)
 			{
-				_currentDirection = new Vector2(Mathf.Sign(entryVector.X), 0);
+				Arrow.Rotation = _currentDirection.Angle();
+				Arrow.Position = Vector2.Zero;
 			}
-			else
-			{
-				_currentDirection = new Vector2(0, Mathf.Sign(entryVector.Y));
-			}
-
-			UpdateArrowPosition();
-			
-			// Notificamos al manager que cambie al modo búnker
 			GameManager.Instance.ChangeState(GameState.BunkerMode);
 		}
-	}
-
-	private void UpdateArrowPosition()
-	{
-		if (Arrow == null) return;
-
-		// Posicionamos la flecha en uno de los 4 bordes del búnker
-		// El búnker es de 64x64 (según el ColorRect actual)
-		float offset = 40.0f; 
-		Arrow.Position = _currentDirection * offset;
-		Arrow.Rotation = _currentDirection.Angle();
 	}
 }

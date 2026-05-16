@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3 uid="uid://d3r5p6j7r8yom"]
+
+[ext_resource type="Script" path="res://Drone.cs" id="1_drone"]
+[ext_resource type="PackedScene" uid="uid://b8r5p6j7r8yom" path="res://Explosion.tscn" id="2_explosion"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_drone"]
+radius = 22.0
+
+[node name="Drone" type="Area2D"]
+collision_layer = 4
+collision_mask = 9
+script = ExtResource("1_drone")
+ExplosionScene = ExtResource("2_explosion")
+
+[node name="Shadow" type="Polygon2D" parent="."]
+color = Color(0, 0, 0, 0.235294)
+polygon = PackedVector2Array(25, 10, 10, 6, 10, -10, 0, -10, 0, 6, -10, 6, -10, 0, -18, 0, -18, 20, -10, 20, -10, 14, 0, 14, 0, 30, 10, 30, 10, 14, 25, 10)
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+color = Color(1, 0.1, 0.1, 1)
+polygon = PackedVector2Array(25, 0, 10, -4, 10, -20, 0, -20, 0, -4, -10, -4, -10, -10, -18, -10, -18, 10, -10, 10, -10, 4, 0, 4, 0, 20, 10, 20, 10, 4, 25, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_drone")
